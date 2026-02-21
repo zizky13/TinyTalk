@@ -1,10 +1,3 @@
-//
-//  File.swift
-//  TinyTalk
-//
-//  Created by Zikar Nurizky on 22/02/26.
-//
-
 import Foundation
 
 struct Result {
@@ -13,3 +6,4 @@ struct Result {
     let reason: String
     let solution: String
 }
+
