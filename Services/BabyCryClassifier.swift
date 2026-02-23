@@ -1,6 +1,11 @@
 import CoreML
 import Foundation
 
+struct CryPrediction: Sendable {
+    let label: String
+    let probabilities: [String: Double]
+}
+
 actor BabyCryClassifier {
     static let shared = BabyCryClassifier()
 
@@ -15,7 +20,7 @@ actor BabyCryClassifier {
         }
     }
 
-    func classify(samples: [Float]) throws -> babycryOutput {
+    func classify(samples: [Float]) throws -> CryPrediction {
         try ensureLoaded()
         guard let model else { throw NSError(domain: "BabyCryClassifier", code: -1, userInfo: [NSLocalizedDescriptionKey: "Model not loaded"]) }
 
@@ -26,12 +31,13 @@ actor BabyCryClassifier {
             let padded = samples + Array(repeating: 0.0, count: expected - samples.count)
             let array = try MLMultiArray(shape: [NSNumber(value: expected)], dataType: .float32)
             for (i, v) in padded.prefix(expected).enumerated() { array[i] = NSNumber(value: v) }
-            return try model.prediction(audioSamples: array)
+            let out = try model.prediction(audioSamples: array)
+            return CryPrediction(label: out.target, probabilities: out.targetProbability)
         }
 
         let array = try MLMultiArray(shape: [NSNumber(value: expected)], dataType: .float32)
         for i in 0..<expected { array[i] = NSNumber(value: samples[i]) }
-        return try model.prediction(audioSamples: array)
+        let out = try model.prediction(audioSamples: array)
+        return CryPrediction(label: out.target, probabilities: out.targetProbability)
     }
 }
-

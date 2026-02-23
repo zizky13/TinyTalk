@@ -10,7 +10,7 @@ import AppleProductTypes
 let package = Package(
     name: "TinyTalk",
     platforms: [
-        .iOS("16.0")
+        .iOS("18.2")
     ],
     products: [
         .iOSApplication(
@@ -31,14 +31,22 @@ let package = Package(
                 .landscapeRight,
                 .landscapeLeft,
                 .portraitUpsideDown(.when(deviceFamilies: [.pad]))
-            ]
+            ],
+            capabilities: [
+                .microphone(purposeString: "We use the microphone to analyze your baby's sounds.")
+            ],
+            appCategory: .utilities
         )
     ],
     targets: [
         .executableTarget(
             name: "AppModule",
-            path: "."
+            path: ".",
+            resources: [
+                .process("Assets.xcassets"),
+                .process("Resources")
+            ]
         )
     ],
-    swiftLanguageVersions: [.v6]
+    swiftLanguageVersions: [.version("6")]
 )

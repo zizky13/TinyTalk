@@ -8,22 +8,31 @@ import SwiftUI
 
 struct BottomSheetView: View {
     @Binding var selectedDetent: PresentationDetent
-    
+    var result: Result
+
     var body: some View {
         VStack(spacing: 16) {
-            
-            // 🔹 Minimal Info (always visible)
-            Text("Quick Summary")
-                .font(.headline)
+            HStack(spacing: 12) {
+                Image(result.icon)
+                    .resizable()
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
+                Text(result.headline)
+                    .font(.headline)
+            }
 
             if selectedDetent == .large {
                 Divider()
-                
-                // 🔹 Detailed Info (only when expanded)
-                Text("Here is the full detailed explanation of what is happening. This appears only when the sheet is expanded.")
-                    .font(.body)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(result.reason)
+                        .font(.body)
+                    Text(result.solution)
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            
+
             Spacer()
         }
         .padding()

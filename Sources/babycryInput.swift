@@ -83,10 +83,23 @@ class babycryOutput : MLFeatureProvider {
 class babycry {
     let model: MLModel
 
-    /// URL of model assuming it was installed in the same bundle as this class
+    /// URL of model in bundle. Prefer compiled `.mlmodelc`; fallback to compile `.mlmodel`.
     class var urlOfModelInThisBundle : URL {
-        let bundle = Bundle(for: self)
-        return bundle.url(forResource: "babycry", withExtension:"mlmodelc")!
+        #if SWIFT_PACKAGE
+        let bundles: [Bundle] = [Bundle.module, Bundle.main] + Bundle.allBundles + Bundle.allFrameworks
+        #else
+        let bundles: [Bundle] = [Bundle.main] + Bundle.allBundles + Bundle.allFrameworks
+        #endif
+        for b in bundles {
+            if let urls = b.urls(forResourcesWithExtension: "mlmodelc", subdirectory: nil), let u = urls.first { return u }
+            if let urls = b.urls(forResourcesWithExtension: "mlpackage", subdirectory: nil) {
+                for p in urls { if let c = try? MLModel.compileModel(at: p) { return c } }
+            }
+            if let urls = b.urls(forResourcesWithExtension: "mlmodel", subdirectory: nil) {
+                for s in urls { if let c = try? MLModel.compileModel(at: s) { return c } }
+            }
+        }
+        preconditionFailure("CoreML model not found in bundle. Place your .mlmodel in Resources/ so it’s processed and embedded.")
     }
 
     /**

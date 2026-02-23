@@ -11,7 +11,6 @@ struct MyApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .background(Color("white-400"))
         }
     }
 }

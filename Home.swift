@@ -9,44 +9,18 @@ import Foundation
 import SwiftUI
 
 struct Home: View {
+    @StateObject private var vm = HomeViewModel()
     @State private var scale = 1.0
-    @State private var isListening = false
-    @State private var isProcessing = false
-    @State private var showSheet = false
-    @State private var selectedDetent: PresentationDetent = .fraction(0.33)
 
-    private func startAnimation() {
-        // Cancel any running animation immediately
-        withAnimation(.none) {
-            scale = 1.0
-        }
-
+    private func startAnimation(isListening: Bool) {
+        withAnimation(.none) { scale = 1.0 }
         if isListening {
-            // Listening animation (pulse)
-            withAnimation(
-                .linear(duration: 1.2)
-                    .repeatForever(autoreverses: true)
-            ) {
-                scale = 0.8
-            }
+            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: true)) { scale = 0.8 }
         } else {
-            // Not listening animation (subtle expand)
-            withAnimation(
-                .linear(duration: 1.2)
-                    .repeatForever(autoreverses: true)
-            ) {
-                scale = 1.1
-            }
+            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: true)) { scale = 1.1 }
         }
     }
-    private func startRecording() {
-        
-    }
-    private func startProcessing() {
-        
-    }
-    
-    
+
     var body: some View {
         VStack {
             Spacer()
@@ -57,22 +31,17 @@ struct Home: View {
 
             Spacer()
             VStack {
-                if isProcessing {
+                if vm.isProcessing {
                     FancySpinner()
                 } else {
                     ZStack {
                         Circle()
-                            .fill(
-                                isListening
-                                    ? Color("violet-50") : Color("violet-200")
-                            )
+                            .fill(vm.isListening ? Color("violet-50") : Color("violet-200"))
                             .frame(width: 250, height: 250)
                             .scaleEffect(scale)
-                            .onAppear {
-                                startAnimation()
-                            }
-                            .onChange(of: isListening) { _ in
-                                startAnimation()
+                            .onAppear { startAnimation(isListening: vm.isListening) }
+                            .onChange(of: vm.isListening) { newVal in
+                                startAnimation(isListening: newVal)
                             }
 
                         Image("ear")
@@ -81,57 +50,35 @@ struct Home: View {
                             .aspectRatio(contentMode: .fit)
                     }
                 }
-                Text(
-                    isListening
-                        ? "Hold the phone close to your little one..."
-                        : "Waiting for sound..."
-                )
-                .font(.custom("OpenSans-Regular", size: 11))
-                .padding(10)
+                Text(vm.isListening ? "Hold the phone close to your little one..." : "Waiting for sound...")
+                    .font(.custom("OpenSans-Regular", size: 11))
+                    .padding(10)
             }
             Spacer()
-            Button(isListening ? "Stop" : "Hear them") {
-                isListening.toggle()
-                Task {
-                    // Simulate listening for 3 seconds
-                    try? await Task.sleep(nanoseconds: 3_000_000_000)
-
-                    // Switch to processing
-                    isListening = true
-                    isProcessing = true
-
-                    // Simulate processing for 2 seconds
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-                    // Back to idle
-                    isProcessing = false
-                    isListening = false
-                    showSheet.toggle()
-                }
+            Button(vm.isListening || vm.isProcessing ? "Stop" : "Hear them") {
+                vm.toggleListening()
             }
-            .buttonStyle(PrimaryButtonStyle(isListening: isListening))
+            .buttonStyle(PrimaryButtonStyle(isListening: vm.isListening))
             Spacer()
         }
-        .sheet(isPresented: $showSheet) {
+        .sheet(isPresented: $vm.showSheet) {
+            // Safely unwrap result with a lightweight fallback to avoid crashes
+            let fallback = Result(
+                headline: "Analyzing",
+                icon: "ear",
+                reason: "Processing audio...",
+                solution: "Please wait a moment."
+            )
+            let unwrapped = vm.result ?? fallback
             if #available(iOS 16.4, *) {
-                BottomSheetView(selectedDetent: $selectedDetent)
-                    .presentationDetents(
-                        [.fraction(0.33), .large],
-                        selection: $selectedDetent
-                    )
-                    .presentationBackground(Color("yellow-50"))
+                BottomSheetView(selectedDetent: $vm.selectedDetent, result: unwrapped)
+                    .presentationDetents([.fraction(0.33), .large], selection: $vm.selectedDetent)
             } else {
-                // Fallback on earlier versions
-                BottomSheetView(selectedDetent: $selectedDetent)
-                    .presentationDetents(
-                        [.fraction(0.33), .large],
-                        selection: $selectedDetent
-                    )
+                BottomSheetView(selectedDetent: $vm.selectedDetent, result: unwrapped)
+                    .presentationDetents([.fraction(0.33), .large], selection: $vm.selectedDetent)
             }
         }
     }
 }
 
-#Preview {
-    Home()
-}
+#Preview { Home() }
