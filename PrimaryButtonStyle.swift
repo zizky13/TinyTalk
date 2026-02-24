@@ -12,7 +12,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.custom("Quicksand-Regular", size: 28))
+            .font(.custom("Quicksand-Bold", size: 28))
             .foregroundColor(Color("black-700"))
             .padding(.vertical, 28)
             .padding(.horizontal, 30)

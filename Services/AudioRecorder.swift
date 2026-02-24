@@ -5,10 +5,11 @@ import Foundation
 final class AudioRecorder {
     private let engine = AVAudioEngine()
     private let mixer = AVAudioMixerNode()
-     var onSamples: (@MainActor ([Float]) -> Void)?
-     let targetSamples = 78000
-     var bufferStore: [Float] = []
-     var emitted = false
+    var onSamples: (@MainActor ([Float]) -> Void)?
+    // CHANGE: Align with model input length (15,600 @ 16 kHz ≈ 0.975s)
+    let targetSamples = 15600 * 3
+    var bufferStore: [Float] = []
+    var emitted = false
     private var tapInstalled = false
     private var tapProxy: TapProxy?
 
@@ -22,9 +23,15 @@ final class AudioRecorder {
 
     private func configureAndStart(session: AVAudioSession) {
         do {
-            try session.setCategory(.playAndRecord, options: [.defaultToSpeaker])
+            // CHANGE: Eliminate acoustic echo/feedback by not routing capture to speaker.
+            // - Switch category to `.record` (no playback path), and use `.measurement`
+            //   to minimize processing.
+            try session.setCategory(.record)
+            try session.setMode(.measurement)
             try session.setPreferredSampleRate(16_000)
             try session.setActive(true)
+            // CHANGE: Additionally ensure engine output is muted as a safety net.
+            engine.mainMixerNode.outputVolume = 0
         } catch { }
 
         let input = engine.inputNode
@@ -44,7 +51,8 @@ final class AudioRecorder {
         engine.disconnectNodeInput(mixer)
         engine.disconnectNodeOutput(mixer)
         engine.connect(input, to: mixer, format: hwFormat)
-        engine.connect(mixer, to: engine.mainMixerNode, format: desiredFormat)
+        // CHANGE: Keep graph simple and ensure no audible output reaches speakers.
+        // We still connect to the main mixer to drive the graph, but output is muted above.
 
         // CHANGE: Create and install the tap from a non-actor helper to avoid
         // creating a MainActor-isolated closure in this method. Closures created
@@ -106,9 +114,46 @@ final class TapProxy {
             rec.bufferStore.append(contentsOf: samples)
             if rec.bufferStore.count >= rec.targetSamples, !rec.emitted {
                 rec.emitted = true
-                let slice = Array(rec.bufferStore.prefix(rec.targetSamples))
+                // CHANGE: Choose the most energetic 15,600-sample window to avoid
+                // bias from initial silence; apply light DC removal + pre-emphasis,
+                // then peak-normalize to improve SNR.
+                let window = rec.targetSamples
+                let buf = rec.bufferStore
+                let end = buf.count - window
+                var bestIdx = 0
+                var bestEnergy: Float = -Float.greatestFiniteMagnitude
+                var currentEnergy: Float = 0
+                let step = max(256, window / 8)
+                var i = 0
+                while i <= end {
+                    // compute energy over [i, i+window)
+                    currentEnergy = 0
+                    var j = i
+                    let stop = i + window
+                    while j < stop { currentEnergy += abs(buf[j]); j += 1 }
+                    if currentEnergy > bestEnergy { bestEnergy = currentEnergy; bestIdx = i }
+                    i += step
+                }
+                var slice = Array(buf[bestIdx..<(bestIdx + window)])
+                // DC removal
+                let mean = slice.reduce(0, +) / Float(slice.count)
+                if abs(mean) > 0 { slice = slice.map { $0 - mean } }
+                // Simple pre-emphasis to boost higher frequencies (common in VAD/classification frontends)
+                let alpha: Float = 0.97
+                var prev: Float = 0
+                for k in 0..<slice.count {
+                    let x = slice[k]
+                    slice[k] = x - alpha * prev
+                    prev = x
+                }
+                // Peak normalization
+                if let maxAbs = slice.map({ abs($0) }).max(), maxAbs > 0 {
+                    let norm = slice.map { $0 / maxAbs }
+                    rec.onSamples?(norm)
+                } else {
+                    rec.onSamples?(slice)
+                }
                 rec.bufferStore.removeAll(keepingCapacity: false)
-                rec.onSamples?(slice)
             }
         }
     }

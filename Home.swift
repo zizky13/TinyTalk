@@ -65,9 +65,10 @@ struct Home: View {
             // Safely unwrap result with a lightweight fallback to avoid crashes
             let fallback = Result(
                 headline: "Analyzing",
+                verdict: "Not Detected",
                 icon: "ear",
                 reason: "Processing audio...",
-                solution: "Please wait a moment."
+                solution: ["Please wait a moment."]
             )
             let unwrapped = vm.result ?? fallback
             if #available(iOS 16.4, *) {
